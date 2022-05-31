@@ -1,3 +1,10 @@
+/*
+The print command limits the output of a SQL string to a certain number. The function splits sections so that no text is lost.
+
+Die Ausgabe eines SQL Strings ist bei dem Print Befehl auf eine bestimmte Anzahl beschränkt.
+Die Funktion spaltet Abschnitte so auf, dass kein Text verloren geht.
+*/
+
 --USE []
 --GO
 
