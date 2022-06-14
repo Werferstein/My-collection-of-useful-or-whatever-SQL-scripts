@@ -25,3 +25,9 @@ __*A quick data comparison for specific table fields on different servers.sql*__
 It is often necessary to make a statement about the data equality for certain fields of a table in distributed databases.
 The fields can be determined in the small script and the various table links are also given.
 It is important that linked servers are also available on the executing server.
+
+ __*TSQL Moving the credentials to a new SQL Server.sql*__
+
+The script stores all credentials in a (local) database. In a second step, this data can be read into a new server again. The credentials from the old server can also be read into the new server via a linked server connection.
+
+
