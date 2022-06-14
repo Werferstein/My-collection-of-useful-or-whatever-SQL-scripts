@@ -19,3 +19,9 @@ The table at the end shows the jobs that still have to be changed manually.
 __*Print without limitation max characters.sql*__
 
 The print command limits the output of a SQL string to a certain number. The function splits sections so that no text is lost.
+
+__*A quick data comparison for specific table fields on different servers.sql*__
+
+It is often necessary to make a statement about the data equality for certain fields of a table in distributed databases.
+The fields can be determined in the small script and the various table links are also given.
+It is important that linked servers are also available on the executing server.
