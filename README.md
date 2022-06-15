@@ -30,4 +30,8 @@ It is important that linked servers are also available on the executing server.
 
 The script stores all credentials in a (local) database. In a second step, this data can be read into a new server again. The credentials from the old server can also be read into the new server via a linked server connection.
 
+__*TSQL job controller with feedback.sql*__
 
+The procedure checks whether another process has already called it (@Jobname);
+if an instance of the procedure is already running, the current instance waits for the current one to complete.
+A timeout can be set. You can also specify whether the process is restarted after the waiting time has elapsed.
