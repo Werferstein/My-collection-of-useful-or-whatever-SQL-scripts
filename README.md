@@ -1,4 +1,4 @@
-# TSQl Helpers
+# T SQL Helpers
 
 My collection of useful (or whatever) SQL scripts
 
