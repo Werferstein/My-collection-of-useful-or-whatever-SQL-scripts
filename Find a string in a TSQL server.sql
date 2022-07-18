@@ -5,6 +5,8 @@ In allen Funktionen, Trigger usw. wird eine bestimmter String gesucht. Das Ergeb
 
 Ingolf Hill 16.08.2017
 */
+USE master
+go
 
 
 
