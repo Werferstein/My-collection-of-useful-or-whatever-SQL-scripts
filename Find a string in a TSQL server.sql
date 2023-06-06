@@ -26,6 +26,8 @@ OPEN myCursor
 
 FETCH NEXT FROM myCursor INTO @DbName
 WHILE @@FETCH_STATUS = 0 BEGIN
+    
+    IF (SELECT top 1 state_desc FROM sys.databases WHERE name = @DbName) = 'OFFLINE' FETCH NEXT FROM myCursor INTO @DbName
     PRINT  @DbName
 
 SET @SqlText =
