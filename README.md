@@ -35,3 +35,9 @@ __*TSQL job controller with feedback.sql*__
 The procedure checks whether another process has already called it (@Jobname);
 if an instance of the procedure is already running, the current instance waits for the current one to complete.
 A timeout can be set. You can also specify whether the process is restarted after the waiting time has elapsed.
+
+__*TSQL comparison via primary key.sql*__
+
+Comparing two tables using the primary key and displaying possible differences in the tables.
+The primary columns are read from the schema and correctly linked to the target table,
+if no blacklist for fields was specified, all remaining fields are compared.
