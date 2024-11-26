@@ -11,6 +11,14 @@ Oft ist es notwendig, auf verteilten Datenbanken eine Aussage über die Datengle
 In dem kleinen Skript können die Felder bestimmt werden und weiter werden die verschiedenen Tabellen Links angegeben. 
 Wichtig ist das auf dem ausführenden Server auch Linked Server vorhanden sind
 
+
+Bitte beachten!
+Um einen genauen Vergleich mehrere Tabellen zu ermöglichen, wird während der Abfrage die Tabelle gesperrt.
+
+Bei Angabe von TABLOCK wird die gemeinsame Sperre auf die gesamte Tabelle statt auf Zeilen- 
+oder Seitenebene angewendet. Wird zusätzlich HOLDLOCK angegeben, wird die Tabellensperre 
+bis zum Transaktionsende aufrechterhalten.
+
 ingolf hill werferstein.org 06.2022
 */
 
@@ -55,3 +63,117 @@ END --WHILE @pos <= @countDbLink
 
 
 SELECT * FROM @DbLinkTABLE
+
+------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------
+--Version2
+------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------
+DECLARE @FieldList NVARCHAR(MAX) = '[Index], [Field 1], [Field 2].............etc' -- Die Liste der Felder
+
+
+
+DECLARE @DbLinkTABLE TABLE (
+	pos INT IDENTITY(1, 1)
+	,dblink VARCHAR(400) COLLATE database_default
+	,[checksum] BIGINT
+	,[count] BIGINT
+	,result VARCHAR(400)
+	)
+
+-- Tabelle mit Links einfügen
+INSERT INTO @DbLinkTABLE (dblink)
+VALUES ('[comPOSe XXX].[dbo].[Debitor]')
+	,-- Link 1
+	('[comPOSe XXX].[dbo].[Debitor]')
+
+
+-- Initialisierung der Variablen
+DECLARE @checksum BIGINT = 0
+	,@count BIGINT = 0
+	,@result NVARCHAR(400) = 'NO'
+	,@pos INT = 1
+DECLARE @countDbLink INT = (SELECT COUNT(*)FROM @DbLinkTABLE)
+	
+
+-- Ausgabe der Feldliste
+PRINT 'Field list: ' + @FieldList
+
+-- Fehlerbehandlung aktivieren
+BEGIN TRY
+	WHILE @pos <= @countDbLink
+	BEGIN
+		-- Aktuellen dblink holen
+		DECLARE @DBlink NVARCHAR(400)
+
+		SELECT @DBlink = dblink
+		FROM @DbLinkTABLE
+		WHERE pos = @pos
+
+		IF @DBlink != ''
+		BEGIN
+			-- Berechnung von checksum und count für die aktuelle Tabelle
+			/*
+			Bei Angabe von TABLOCK wird die gemeinsame Sperre auf die gesamte Tabelle statt auf Zeilen- 
+			oder Seitenebene angewendet. Wird zusätzlich HOLDLOCK angegeben, wird die Tabellensperre 
+			bis zum Transaktionsende aufrechterhalten
+			*/
+			DECLARE @sqlText NVARCHAR(MAX) = 
+			N'SELECT 
+                @Count = COUNT_BIG(*), 
+                @Checksum = SUM(CONVERT(Numeric, BINARY_CHECKSUM($FieldList$))) 
+            FROM $DBlink$ WITH (TABLOCK HOLDLOCK)'
+
+			-- Platzhalter durch Feldliste und dblink ersetzen
+			SET @sqlText = REPLACE(@sqlText, '$FieldList$', @FieldList)
+			SET @sqlText = REPLACE(@sqlText, '$DBlink$', @DBlink)
+			print @sqlText
+			-- Ausführen des dynamischen SQL
+			EXEC sp_executesql @sqlText
+				,N'@Checksum BIGINT OUTPUT, @Count BIGINT OUTPUT'
+				,@checksum OUTPUT
+				,@count OUTPUT
+
+			-- Ergebnis vergleichen und bestimmen
+			SET @result = CASE 
+					WHEN @checksum != 0
+						AND @count != 0
+						THEN CASE 
+								WHEN EXISTS (
+										SELECT 1
+										FROM @DbLinkTABLE
+										WHERE pos < @pos
+											AND [checksum] != @checksum
+											OR [count] != @count
+										)
+									THEN 'ERROR !!'
+								ELSE 'OK'
+								END
+					ELSE 'UNKNOWN'
+					END
+
+			-- Ergebnis ausgeben
+			PRINT 'Nr: ' + CONVERT(VARCHAR(40), @pos) + ' ' + @DBlink + ' @count: ' + CONVERT(VARCHAR(40), @count) + ' checksum: ' + CONVERT(VARCHAR(40), @checksum) + ' ' + @result
+
+			-- Zwischenspeichern der Ergebnisse in der Tabelle
+			UPDATE @DbLinkTABLE
+			SET [checksum] = @checksum
+				,[count] = @count
+				,result = @result
+			WHERE pos = @pos
+		END
+
+		-- Nächsten Link aufrufen
+		SET @pos = @pos + 1
+	END
+
+	-- Endergebnisse anzeigen
+	SELECT *
+	FROM @DbLinkTABLE
+END TRY
+
+BEGIN CATCH
+	-- Fehlerbehandlung
+	PRINT 'Fehler aufgetreten: ' + ERROR_MESSAGE()
+END CATCH
+
