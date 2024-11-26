@@ -21,6 +21,7 @@ DECLARE @TargetTableName NVARCHAR(100) = 'table name (compare)'
 DECLARE @ifDiff_TOP NVARCHAR(300) = 'TOP (1000)'
 DECLARE @DatabaseSchema NVARCHAR(100) = 'dbo'
 
+
 --#########################################################################################
 --#########################################################################################
 SET @ServerLink = CASE WHEN @ServerLink != '' THEN '[' + @ServerLink + '].' ELSE '' END
@@ -241,16 +242,20 @@ EXEC sp_executesql @SQLtext,
 --#########################################################################################
 --table count diff
 DECLARE @CountDiff INT = 0;
+PRINT @line + @line;
 Set @SQLtext =
 '
 --table count diff
-SET @CountDiff = (		
-SELECT COUNT(*) [Diff count to Source]
-FROM $TargetTableLink$ AS t1 WITH (NOLOCK)
-) - (
-SELECT COUNT(*)
-FROM $SourceTableLink$ AS t1 WITH (NOLOCK)		
-)
+
+DECLARE @targetCount INT =
+(SELECT COUNT(*) [Diff count to Source] FROM $TargetTableLink$ AS t1 WITH (NOLOCK))
+PRINT''$TargetTableLink$ count:'' 
+PRINT @targetCount
+DECLARE @sourceCount INT =
+(SELECT COUNT(*) FROM $SourceTableLink$ AS t1 WITH (NOLOCK))
+PRINT''$SourceTableLink$ count:'' 
+PRINT @sourceCount
+SET @CountDiff  = @targetCount - @sourceCount
 '
 SET @SQLtext = REPLACE(@SQLtext,'$PK_STR$',@PK_STR);
 SET @SQLtext = REPLACE(@SQLtext,'$column_name_compare$',@column_name_compare);
@@ -269,7 +274,7 @@ EXEC sp_executesql @SQLtext,
 Set @SQLtext =
 '
 SELECT DISTINCT ''$ProcessId$'' AS ProcessId,
-	@FieldDiff AS [Diff Felder],
+	@FieldDiff AS [Diff Fields],
 	@CountDiff AS [Diff count to Source],
 	COUNT(*) AS [Diff PKEY count to Source]	
 FROM $TargetTableLink$ AS t1 WITH (NOLOCK)
@@ -298,7 +303,63 @@ EXEC sp_executesql @SQLtext,
 	  @CountDiff
 
 
+--#########################################################################################
+--#########################################################################################
+IF @CountDiff != 0
+BEGIN
+	IF @CountDiff < 0
+	BEGIN	
+	Set @SQLtext =
+		'
+		--View count diff. in table
+		SELECT	
+			''Source'' AS ORIGIN,
+			$PK_STR_list$
+			$column_name_list$	
+			FROM  $SourceTableLink$ AS t1 WITH (NOLOCK)
+			LEFT JOIN $TargetTableLink$ AS t2 WITH (NOLOCK) ON
+			(
+		$PK_STR$
+			)
+			WHERE 
+		$PK_STR_IS_NULL$		
+		'
+	END
+	ELSE
+	BEGIN
+	Set @SQLtext =
+		'
+		--View count diff. in table
+		SELECT	
+			''Target'' AS ORIGIN,
+			$PK_STR_list$
+			$column_name_list$	
+			FROM  $TargetTableLink$ AS t1 WITH (NOLOCK)
+			LEFT JOIN $SourceTableLink$ AS t2 WITH (NOLOCK) ON
+			(
+		$PK_STR$
+			)
+			WHERE 
+		$PK_STR_IS_NULL$		
+		'	
+	END
+		
+		SET @column_name_list = SUBSTRING(@column_name_list,0,LEN(@column_name_list))
+		SET @PK_STR_IS_NULL = REPLACE(@PK_STR_IS_NULL,'t1','t2')
 
+		SET @SQLtext = REPLACE(@SQLtext,'$column_name_list$',@column_name_list);
+		SET @SQLtext = REPLACE(@SQLtext,'$PK_STR$',@PK_STR);
+		SET @SQLtext = REPLACE(@SQLtext,'$PK_STR_IS_NULL$',@PK_STR_IS_NULL);
+		SET @SQLtext = REPLACE(@SQLtext,'$column_name_compare$',@column_name_compare);
+		SET @SQLtext = REPLACE(@SQLtext,'$SourceTableLink$', @SourceTableLink );
+		SET @SQLtext = REPLACE(@SQLtext,'$TargetTableLink$',@TargetTableLink);
+		SET @SQLtext = REPLACE(@SQLtext,'$ProcessId$',@ProcessId);
+		SET @SQLtext = REPLACE(@SQLtext,'$column_name_compareView$',@column_name_compareView);
+		SET @SQLtext = REPLACE(@SQLtext,'$PK_STR_list$',@PK_STR_list);
+		SET @SQLtext = REPLACE(@SQLtext,'$ifDiff_TOP$',@ifDiff_TOP);
+		--PRINT @SQLtext
+		EXEC sp_executesql @SQLtext
+END
 --#########################################################################################
 --#########################################################################################
 --View diff. in table
@@ -334,13 +395,13 @@ SET @SQLtext = REPLACE(@SQLtext,'$ifDiff_TOP$',@ifDiff_TOP);
 PRINT @line + @line + @SQLtext + @line + @line
 EXEC sp_executesql @SQLtext
 
+EndProg:
+
 Print 'PKeys:'
 Print @PK_STR_list
 Print 'Fields:'
 Print @column_name_list
 
-
-EndProg:
 --clean up
 if OBJECT_ID('tempdb..##TempTablePkList', 'U') is not null  drop table ##TempTablePkList
 if OBJECT_ID('tempdb..##TempTablecolumn_names', 'U') is not null  drop table ##TempTablecolumn_names
