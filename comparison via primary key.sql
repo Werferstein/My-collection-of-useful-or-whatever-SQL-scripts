@@ -1,9 +1,15 @@
 --#########################################################################################
---Comparing two tables using the primary key and displaying possible differences in the tables.
---The primary columns are read from the schema and correctly linked to the target table,
---if no blacklist for fields was specified, all remaining fields are compared.
---I.Hill 11.2024
+-- Skript: Tabellenvergleich
+-- Zweck: Vergleich von zwei Tabellen (Quelle und Ziel) basierend auf dem Primärschlüssel.
+--        Ermittelt Unterschiede in Datensätzen und Spaltenwerten.
+-- Autor: I.Hill
+-- Datum: November 2024
 --#########################################################################################
+
+--#########################################################################################
+-- Parameterdefinition
+--#########################################################################################
+
 
 DECLARE @ProcessId NVARCHAR(10) = 'Test'
 --Source -->basis of comparison<--
@@ -25,9 +31,13 @@ DECLARE @DatabaseSchema NVARCHAR(100) = 'dbo'
 --#########################################################################################
 --#########################################################################################
 SET @ServerLink = CASE WHEN @ServerLink != '' THEN '[' + @ServerLink + '].' ELSE '' END
-DECLARE @SourceTableLink NVARCHAR(300) =  '[' + @DatabaseName + '].[' + @DatabaseSchema + '].[' + @tableName + ']';
-DECLARE @TargetTableLink NVARCHAR(300) =  @ServerLink + '[' + @TargetDatabaseName + '].[' + @DatabaseSchema + '].[' + @TargetTableName + ']';
+DECLARE @SourceTableLink NVARCHAR(400) =  '[' + @DatabaseName + '].[' + @DatabaseSchema + '].[' + @tableName + ']';
+DECLARE @TargetTableLink NVARCHAR(400) =  @ServerLink + '[' + @TargetDatabaseName + '].[' + @DatabaseSchema + '].[' + @TargetTableName + ']';
 DECLARE @line NVARCHAR(300) = '--#########################################################################################' + char(13)
+
+--#########################################################################################
+-- Schritt 1: Überprüfen, ob Quell- und Zieltabellen existieren
+--#########################################################################################
 if OBJECT_ID(@SourceTableLink, 'U') is null  
 BEGIN
 	Print '@SourceTableLink ?' + @SourceTableLink;
@@ -50,7 +60,9 @@ BEGIN
 	END
 END 
 
-
+--#########################################################################################
+-- Schritt 2: Verarbeiten der Spalten-Blacklist (falls angegeben)
+--#########################################################################################
 if @FieldNameBlackList IS NOT NULL AND @FieldNameBlackList != ''
 BEGIN
 	if OBJECT_ID('tempdb..##columnBlacklist', 'U') is not null  drop table ##columnBlacklist
@@ -93,7 +105,9 @@ BEGIN
 END
 
 
-
+--#########################################################################################
+-- Schritt 3: Abrufen der Primärschlüssel der Quelltabelle
+--#########################################################################################
 DECLARE @SQLtext NVARCHAR(MAX)
 if OBJECT_ID('tempdb..##TempTablePkList', 'U') is not null  drop table ##TempTablePkList
 --Get the pk(s) from specific table
@@ -133,6 +147,9 @@ BEGIN
 	return;
 END
 --SELECT * FROM ##TempTablePkList
+
+--#########################################################################################
+-- Schritt 4: Abrufen der Spalten der Quelltabelle (ausgenommen Blacklist und PK)
 --#########################################################################################
 if OBJECT_ID('tempdb..##TempTablecolumn_names', 'U') is not null  drop table ##TempTablecolumn_names
 --get the rest
@@ -212,35 +229,8 @@ BEGIN
 END
 --#########################################################################################
 --#########################################################################################
---Count field diff
-DECLARE @FieldDiff INT = 0;
-Set @SQLtext =
-'
---Count field diff
-SET @FieldDiff = (
-SELECT COUNT(*)
-FROM $TargetTableLink$ AS t1 WITH (NOLOCK)
-LEFT JOIN $SourceTableLink$ AS t2 WITH (NOLOCK) ON
-(
-$PK_STR$
-)
-WHERE 
-$column_name_compare$
-)
-'
-SET @SQLtext = REPLACE(@SQLtext,'$PK_STR$',@PK_STR);
-SET @SQLtext = REPLACE(@SQLtext,'$column_name_compare$',@column_name_compare);
-SET @SQLtext = REPLACE(@SQLtext,'$SourceTableLink$', @SourceTableLink );
-SET @SQLtext = REPLACE(@SQLtext,'$TargetTableLink$',@TargetTableLink);
---PRINT @SQLtext
-EXEC sp_executesql @SQLtext,
-     N'        
-      @FieldDiff INT OUTPUT
-	  ',
-	  @FieldDiff OUTPUT
---#########################################################################################
---#########################################################################################
---table count diff
+--table count
+--table count
 DECLARE @CountDiff INT = 0;
 PRINT @line + @line;
 Set @SQLtext =
@@ -267,13 +257,57 @@ EXEC sp_executesql @SQLtext,
       @CountDiff INT OUTPUT
 	  ',
 	  @CountDiff OUTPUT
+
+--If the number of rows in the base table is larger, the link is swapped so that the left join works correctly
+DECLARE @Source_to_FromTarget BIT = 0;
+DECLARE @Orgin NVARCHAR(400) = 'Target'
+IF @CountDiff < 0 
+BEGIN
+	--buffer link
+	DECLARE @TempTableLink NVARCHAR(400) = @SourceTableLink;
+	SET @SourceTableLink = @TargetTableLink;
+	SET @TargetTableLink = @TempTableLink;
+	Set @Source_to_FromTarget = 1;
+	SET @Orgin = 'Source'
+END
+--#########################################################################################
+--#########################################################################################
+--Count field diff
+DECLARE @FieldDiff INT = 0;
+Set @SQLtext =
+'
+--Count field diff
+SET @FieldDiff = (
+SELECT COUNT(*)
+FROM $TargetTableLink$ AS t1 WITH (NOLOCK)
+LEFT JOIN $SourceTableLink$ AS t2 WITH (NOLOCK) ON
+(
+$PK_STR$
+)
+WHERE 
+$column_name_compare$
+)
+'
+SET @SQLtext = REPLACE(@SQLtext,'$Orgin$',@Orgin);
+SET @SQLtext = REPLACE(@SQLtext,'$PK_STR$',@PK_STR);
+SET @SQLtext = REPLACE(@SQLtext,'$column_name_compare$',@column_name_compare);
+SET @SQLtext = REPLACE(@SQLtext,'$SourceTableLink$', @SourceTableLink );
+SET @SQLtext = REPLACE(@SQLtext,'$TargetTableLink$',@TargetTableLink);
+--PRINT @SQLtext
+EXEC sp_executesql @SQLtext,
+     N'        
+      @FieldDiff INT OUTPUT
+	  ',
+	  @FieldDiff OUTPUT
 --#########################################################################################
 --#########################################################################################
 
 
 Set @SQLtext =
 '
+--View from source to target
 SELECT DISTINCT ''$ProcessId$'' AS ProcessId,
+	''$Orgin$'' as ORGIN,
 	@FieldDiff AS [Diff Fields],
 	@CountDiff AS [Diff count to Source],
 	COUNT(*) AS [Diff PKEY count to Source]	
@@ -285,6 +319,8 @@ $PK_STR$
 WHERE 
 $PK_STR_IS_NULL$
 '
+SET @PK_STR_IS_NULL = REPLACE(@PK_STR_IS_NULL,'t1','t2')
+SET @SQLtext = REPLACE(@SQLtext,'$Orgin$',@Orgin);
 SET @SQLtext = REPLACE(@SQLtext,'$column_name_list$',@column_name_list);
 SET @SQLtext = REPLACE(@SQLtext,'$PK_STR$',@PK_STR);
 SET @SQLtext = REPLACE(@SQLtext,'$PK_STR_IS_NULL$',@PK_STR_IS_NULL);
@@ -306,32 +342,13 @@ EXEC sp_executesql @SQLtext,
 --#########################################################################################
 --#########################################################################################
 IF @CountDiff != 0
-BEGIN
-	IF @CountDiff < 0
-	BEGIN	
+BEGIN	
 	Set @SQLtext =
 		'
-		--View count diff. in table
+		--View count diff. in source table ($SourceTableLink$)
 		SELECT	
-			''Source'' AS ORIGIN,
-			$PK_STR_list$
-			$column_name_list$	
-			FROM  $SourceTableLink$ AS t1 WITH (NOLOCK)
-			LEFT JOIN $TargetTableLink$ AS t2 WITH (NOLOCK) ON
-			(
-		$PK_STR$
-			)
-			WHERE 
-		$PK_STR_IS_NULL$		
-		'
-	END
-	ELSE
-	BEGIN
-	Set @SQLtext =
-		'
-		--View count diff. in table
-		SELECT	
-			''Target'' AS ORIGIN,
+			''$ProcessId$'' AS ProcessId,
+			''$Orgin$'' as ORGIN,
 			$PK_STR_list$
 			$column_name_list$	
 			FROM  $TargetTableLink$ AS t1 WITH (NOLOCK)
@@ -341,12 +358,10 @@ BEGIN
 			)
 			WHERE 
 		$PK_STR_IS_NULL$		
-		'	
-	END
-		
+		'
 		SET @column_name_list = SUBSTRING(@column_name_list,0,LEN(@column_name_list))
 		SET @PK_STR_IS_NULL = REPLACE(@PK_STR_IS_NULL,'t1','t2')
-
+		SET @SQLtext = REPLACE(@SQLtext,'$Orgin$',@Orgin);
 		SET @SQLtext = REPLACE(@SQLtext,'$column_name_list$',@column_name_list);
 		SET @SQLtext = REPLACE(@SQLtext,'$PK_STR$',@PK_STR);
 		SET @SQLtext = REPLACE(@SQLtext,'$PK_STR_IS_NULL$',@PK_STR_IS_NULL);
@@ -357,7 +372,7 @@ BEGIN
 		SET @SQLtext = REPLACE(@SQLtext,'$column_name_compareView$',@column_name_compareView);
 		SET @SQLtext = REPLACE(@SQLtext,'$PK_STR_list$',@PK_STR_list);
 		SET @SQLtext = REPLACE(@SQLtext,'$ifDiff_TOP$',@ifDiff_TOP);
-		--PRINT @SQLtext
+		PRINT @SQLtext
 		EXEC sp_executesql @SQLtext
 END
 --#########################################################################################
@@ -370,7 +385,8 @@ Set @SQLtext =
 SELECT	
 	DISTINCT 
 	$ifDiff_TOP$
-	''$ProcessId$'' AS ProcessId, 
+	''$ProcessId$'' AS ProcessId,
+	''$Orgin$'' as ORGIN,
 $PK_STR_list$	
 $column_name_compareView$		
 	FROM $TargetTableLink$ AS t1 WITH (NOLOCK)
@@ -382,6 +398,7 @@ $PK_STR$
 $column_name_compare$		
 '
 SET @SQLtext = REPLACE(@SQLtext,'$column_name_list$',@column_name_list);
+SET @SQLtext = REPLACE(@SQLtext,'$Orgin$',@Orgin);
 SET @SQLtext = REPLACE(@SQLtext,'$PK_STR$',@PK_STR);
 SET @SQLtext = REPLACE(@SQLtext,'$PK_STR_IS_NULL$',@PK_STR_IS_NULL);
 SET @SQLtext = REPLACE(@SQLtext,'$column_name_compare$',@column_name_compare);
@@ -392,9 +409,10 @@ SET @SQLtext = REPLACE(@SQLtext,'$column_name_compareView$',@column_name_compare
 SET @SQLtext = REPLACE(@SQLtext,'$PK_STR_list$',@PK_STR_list);
 SET @SQLtext = REPLACE(@SQLtext,'$ifDiff_TOP$',@ifDiff_TOP);
 
-PRINT @line + @line + @SQLtext + @line + @line
+PRINT @line + @line
+PRINT @SQLtext
 EXEC sp_executesql @SQLtext
-
+PRINT @line + @line
 EndProg:
 
 Print 'PKeys:'
