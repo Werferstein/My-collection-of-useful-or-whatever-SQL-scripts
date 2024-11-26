@@ -20,12 +20,6 @@ __*Print without limitation max characters.sql*__
 
 The print command limits the output of a SQL string to a certain number. The function splits sections so that no text is lost.
 
-__*A quick data comparison for specific table fields on different servers.sql*__
-
-It is often necessary to make a statement about the data equality for certain fields of a table in distributed databases.
-The fields can be determined in the small script and the various table links are also given.
-It is important that linked servers are also available on the executing server.
-
  __*TSQL Moving the credentials to a new SQL Server.sql*__
 
 The script stores all credentials in a (local) database. In a second step, this data can be read into a new server again. The credentials from the old server can also be read into the new server via a linked server connection.
@@ -35,6 +29,12 @@ __*TSQL job controller with feedback.sql*__
 The procedure checks whether another process has already called it (@Jobname);
 if an instance of the procedure is already running, the current instance waits for the current one to complete.
 A timeout can be set. You can also specify whether the process is restarted after the waiting time has elapsed.
+
+__*A quick data comparison for specific table fields on different servers.sql*__
+
+It is often necessary to make a statement about the data equality for certain fields of a table in distributed databases.
+The fields can be determined in the small script and the various table links are also given.
+It is important that linked servers are also available on the executing server.
 
 __*TSQL comparison via primary key.sql*__
 
