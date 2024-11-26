@@ -9,22 +9,23 @@ DECLARE @ProcessId NVARCHAR(10) = 'Test'
 --Source -->basis of comparison<--
 DECLARE @tableName NVARCHAR(100) = 'table name'
 DECLARE @DatabaseName NVARCHAR(100) = 'database name'
-DECLARE @DatabaseSchema NVARCHAR(100) = 'dbo'
 DECLARE @FieldNameBlackList NVARCHAR(MAX) = ''
 
 
 --Target
 DECLARE @ServerLink NVARCHAR(300) = '' --optional linked server
-DECLARE @TargetDatabaseName NVARCHAR(100) = 'table name to compare'
+DECLARE @TargetDatabaseName NVARCHAR(100) = 'database (compare)'
+DECLARE @TargetTableName NVARCHAR(100) = 'table name (compare)'
+	
 --Limiting the different lines --> TOP (XXX)
 DECLARE @ifDiff_TOP NVARCHAR(300) = 'TOP (1000)'
-
+DECLARE @DatabaseSchema NVARCHAR(100) = 'dbo'
 
 --#########################################################################################
 --#########################################################################################
 SET @ServerLink = CASE WHEN @ServerLink != '' THEN '[' + @ServerLink + '].' ELSE '' END
-DECLARE @TargetTableLink NVARCHAR(300) =  @ServerLink + '[' + @TargetDatabaseName + '].[' + @DatabaseSchema + '].[' + @tableName + ']';
-DECLARE @SourceTableLink NVARCHAR(300) = '[' + @DatabaseName + '].[' + @DatabaseSchema + '].[' + @tableName + ']';
+DECLARE @SourceTableLink NVARCHAR(300) =  '[' + @DatabaseName + '].[' + @DatabaseSchema + '].[' + @tableName + ']';
+DECLARE @TargetTableLink NVARCHAR(300) =  @ServerLink + '[' + @TargetDatabaseName + '].[' + @DatabaseSchema + '].[' + @TargetTableName + ']';
 DECLARE @line NVARCHAR(300) = '--#########################################################################################' + char(13)
 if OBJECT_ID(@SourceTableLink, 'U') is null  
 BEGIN
